@@ -1,0 +1,215 @@
+# kaggle競賽-Titanic存活預測
+from sklearn.model_selection import GridSearchCV # 測試理想值
+from sklearn.ensemble import RandomForestClassifier # 隨機森林分類器
+from sklearn.ensemble import RandomForestRegressor # 隨機森林回歸 
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+train = pd.read_csv("train.csv")
+test = pd.read_csv("test.csv")
+submit = pd.read_csv("gender_submission.csv")
+# 確認資料內容
+train.head(5)
+test.head(5)
+submit.head(5)
+train.info()
+test.info()
+submit.info()
+train.describe()
+test.describe()
+submit.describe()
+# 將test合併至train
+data = train.append(test)
+# 索引值重新排序
+data.reset_index(inplace = True,drop = True)
+data.info()
+# 查看整體存活狀況(因合併test，因此'Survived'總數只有train的891個)
+sns.countplot(data['Survived'])
+# 查看data['Pclass'](船票等級)與存活率的關係
+sns.countplot(data['Pclass'],hue = data['Survived'])
+# 查看data['sex'](姓別)與存活率的關係
+sns.countplot(data['Sex'],hue = data['Survived'])
+# 查看data['Embarked'](登船港口)與存活率的關係
+'''Cherbourg：瑟堡，位於法國西北的一個城鎮，屬重要軍港和商港。
+   Queenstown：目前稱為科芙，位於愛爾蘭，於1850年更名為皇后鎮（又稱昆士敦），
+   以紀念維多利亞女王的造訪，直到1920年，愛爾蘭自由邦建立後，它被重新命名為科芙。
+   Southampton：南安普敦，位於陽光燦爛的英國南方海岸，是個港口城市，
+   離倫敦僅1小時車程，鐵達尼號正是從這裡出航。'''
+sns.countplot(data['Embarked'],hue = data['Survived'])
+# 查看data['Age'](年齡)與存活率的關係
+g = sns.FacetGrid(data, col = 'Survived')
+g.map(sns.distplot,'Age',hist = True,kde = True)
+# 查看data['Fare'](船票價格)與存活率的關係
+g = sns.FacetGrid(data, col = 'Survived')
+g.map(sns.distplot,'Fare',kde = False)
+# 查看data['Parch'](在船上的父母家長及子女總數)與存活率的關係
+g = sns.FacetGrid(data, col = 'Survived')
+g.map(sns.distplot,'Parch',kde = False)
+# 查看data['SibSp'](在船上的兄弟姊妹及配偶總數)與存活率的關係
+g = sns.FacetGrid(data, col = 'Survived')
+g.map(sns.distplot,'SibSp',kde = False)
+# 新增欄位data['family_size'] = data['Parch']+data['SibSp']
+data['family_size'] = data['Parch'] + data['SibSp']
+# 查看data['family_size'](在船上有家庭人數的總數)與存活率的關係
+g = sns.FacetGrid(data, col = 'Survived')
+g.map(sns.distplot,'family_size',kde = False)
+# 新增姓名抬頭欄位,利用data['Name']做切割
+data['Name'].str.split(',',expand=True).head(3)
+data['Title1'] = data['Name'].str.split("," ,expand=True)[1]
+# 確認data['Title1']以及data['Name']內容
+data['Name'].head(3)
+data['Title1'].head(3)
+# 對data['Title1']再進行切割,留下稱謂
+data['Title1'].str.split('.',expand=True)
+data['Title1'] = data['Title1'].str.split('.',expand=True)[0]
+# 查看data['Title1']
+data['Title1'].head(3)
+# 查看data['Title1']的唯一值
+data['Title1'].unique()
+# 發現有空字串存在
+data['Title1'] = data['Title1'].str.replace(' ','')
+# 建立交叉表，查看各稱謂在姓別裡的數量
+tsex = pd.crosstab(data['Title1'],data['Sex']).T
+# 建立交叉表，查看各稱謂在生存率上的表現
+ts = pd.crosstab(data['Title1'],data['Survived']).T
+# 查看各稱謂的平均年齡
+data.groupby(['Title1'])['Age'].mean()
+# 查看各稱謂以及船票的平均年齡
+data.groupby(['Title1','Pclass'])['Age'].mean()
+# 新增Title2變數將Title1的名稱更正
+data['Title2'] = data['Title1'].replace(['Mlle','Mme','Ms','Dr'\
+                                        ,'Major','Lady','theCountess'
+                                        ,'Jonkheer','Col','Rev','Capt'\
+                                        ,'Sir','Don','Dona'],
+         ['Miss','Mrs','Miss','Mr','Mr','Mrs','Mrs','Mr','Mr','Mr','Mr'
+          ,'Mr','Mr','Mrs'])
+# 查看data['Title2']的唯一值
+data['Title2'].unique()
+# 查看各稱謂2的平均年齡
+data.groupby(['Title2'])['Age'].mean()
+# 查看各稱謂2以及船票的平均年齡
+data.groupby(['Title2','Pclass'])['Age'].mean()
+# 查看各稱謂在姓別裡的數量
+pd.crosstab(data['Title2'],data['Sex']).T
+# 查看各稱謂在生存率上的表現
+pd.crosstab(data['Title2'],data['Survived']).T
+# 查看兒童在各船票當中的平均年齡
+list(data.groupby(['Title2','Pclass'])['Age'].mean().iteritems())[:3]
+# 查看船票編號
+data['Ticket']
+# 取出船票編號抬頭,若無抬頭則用'X'取代
+data['Ticket_info'] = data['Ticket'].apply(lambda x : x.replace(".","")\
+    .replace("/","").strip().split(' ')[0] if not x.isdigit() else 'X')
+# 查看船票編號唯一值
+data['Ticket_info'].unique()
+# 查看船票編號與生存率的關聯
+plt.figure(figsize = (18,6))
+sns.countplot(data['Ticket_info'], hue=data['Survived'])
+
+
+
+'''------------補空值---------------------'''
+# 查看資料內容空值狀況，發現Embarked(登船港口)、Cabin(船艙號碼)、Age(年齡)、Fare(船票價格)等，有空值
+data.info()
+# 查看Embarked(登船港口)與生存率關係發現，大部份都由S港登入，並缺失2個值，因此判定皆補至S港，對於整體數據應無影響
+sns.countplot(data['Embarked'],hue=data['Survived'])
+data['Embarked'] = data['Embarked'].fillna('S')
+data.info()
+# Fare(船票價格)只有一個空值，判定用Fare(船票價格)的平均值來補值，對於整體數據應無影響
+data['Fare'] = data['Fare'].fillna(data['Fare'].mean())
+data.info()
+# 查看Cabin(船艙號碼)
+data['Cabin']
+# 將data['Cabin']的NaN值補為'noCabin' ,其餘值取str[0](第一個字)
+data['Cabin'] = data['Cabin'].apply(lambda x : str(x)[0] if not pd.isnull(x) else 'NoCabin')
+# 查看data['Cabin']的唯一值
+data['Cabin'].unique()
+# 查看data['Cabin']與生存率的關係
+sns.countplot(data['Cabin'], hue = data['Survived'])
+# 將所有非數值的資料轉成數值來判斷
+data['Sex'] = data['Sex'].astype('category').cat.codes
+data['Embarked'] = data['Embarked'].astype('category').cat.codes
+data['Pclass'] = data['Pclass'].astype('category').cat.codes
+data['Title1'] = data['Title1'].astype('category').cat.codes
+data['Title2'] = data['Title2'].astype('category').cat.codes
+data['Cabin'] = data['Cabin'].astype('category').cat.codes
+data['Ticket_info'] = data['Ticket_info'].astype('category').cat.codes
+data.info()
+# 處理data['Age']年齡欄位的空值
+dataAgeNull = data[data["Age"].isnull()] #dataAgeNull為年齡空值的變數
+dataAgeNotNull = data[data["Age"].notnull()]#dataAgeNull為年齡非空值的變數
+# 去除outlier
+# 處理1：篩選年齡非空值的Fare(船票價格)-Fare的平均值後,還大於4倍的Fare標準差的資料加入'remove_outlier'變數中
+# 處理2：篩選年齡非空值的family_size-family_size的平均值後,還大於4倍的family_size標準差的資料加入'remove_outlier'變數中
+remove_outlier = dataAgeNotNull[~(np.abs(dataAgeNotNull["Fare"]\
+                                        -dataAgeNotNull["Fare"].mean())>(4*dataAgeNotNull["Fare"].std()))]
+remove_outlier = remove_outlier[~(np.abs(remove_outlier["family_size"]\
+                                         -remove_outlier["family_size"].mean())>(4*remove_outlier["family_size"].std()))]
+# 隨機森林回歸
+rfModel_age = RandomForestRegressor(n_estimators=2000,random_state=42) #2000顆樹,隨機種子為42
+# 選擇要用的欄位存在ageColumns變數
+ageColumns = ['Embarked', 'Fare', 'Pclass', 'Sex', 'family_size', 'Title1', 'Title2','Cabin','Ticket_info']
+# 將remove_outlier[ageColumns]以及remove_outlier["Age"]放入模型
+rfModel_age.fit(remove_outlier[ageColumns], remove_outlier["Age"])
+# 將年齡為空值的變數dataAgeNull用ageColumns的欄位做預測,並存放在ageNullValues變數中
+ageNullValues = rfModel_age.predict(dataAgeNull[ageColumns])
+# 將dataAgeNull['Age']的欄位(年齡皆空值)補上ageNullValues
+dataAgeNull.loc[:,"Age"] = ageNullValues
+# 將年齡非空值的dataAgeNull新增剛補好年齡空值的dataAgeNotNull轉存為data
+data = dataAgeNull.append(dataAgeNotNull)
+# 重新排序data的索引
+data.reset_index(inplace=True, drop=True)
+data.info() #所有空值皆補齊了
+
+'''切開原來的train與test資料'''
+# 將data['Survived']有值的欄位放在dataTrain變數,無值的放在dataTest變數
+# 並用PassengerId(乘客ID編號)做排序
+dataTrain = data[pd.notnull(data['Survived'])].sort_values(by=["PassengerId"])
+dataTest = data[~pd.notnull(data['Survived'])].sort_values(by=["PassengerId"])
+# 查看dataTrain變數的columns排序
+dataTrain.columns
+# 修改dataTrain以及dataTest變數的columns排序，並去除PassengerId(乘客ID編號)與Name(乘客姓名)
+dataTrain = dataTrain[['Survived', 'Age', 'Embarked', 'Fare',  'Pclass', 'Sex',\
+                       'family_size', 'Title2','Ticket_info','Cabin']]
+dataTest = dataTest[['Age', 'Embarked', 'Fare', 'Pclass', 'Sex', 'family_size', 'Title2','Ticket_info','Cabin']]
+
+'''Model training'''
+# 不確定各參數理想值，測試方法'GridSearchCV'
+#"oob_score=True"同意袋外數據測試，"n_jobs"設為-1等於CPU的核心數全開
+rf = RandomForestClassifier(oob_score=True, random_state=1, n_jobs=-1)
+# 建立一個dict，將想要設定的值都放在key中
+param_grid = { "criterion" : ["gini", "entropy"],\
+              "min_samples_leaf" : [1, 5, 10], "min_samples_split"\
+              : [2, 4, 10, 12, 16, 20], "n_estimators": [50, 100, 400, 700, 1000]}
+# 'GridSearchCV'自動調節參數，'estimator'(所使用的分類器)=變數rf
+# 'param_grid'(想要調整的參數)=變數param_grid，'scoring'(准確度評價標準)='accuracy'(準確性)
+# 'cv'(交叉驗証參數)='3'(折)，'n_jobs'(使用cpu核心數)='-1'(火力全開)
+gs = GridSearchCV(estimator=rf, param_grid=param_grid, scoring='accuracy', cv=5, n_jobs=-1)
+# 將訓練資料所有欄位(除了Survived)與訓練資料的'Survived'欄位放入模型
+gs = gs.fit(dataTrain.iloc[:, 1:], dataTrain.iloc[:, 0])
+print(gs.best_score_)# 查看'param_grid'變數優化過程期間觀察到的最好的評分
+print(gs.best_params_)# 查看'param_grid'變數最佳結果的參數的組合
+
+# 進行模型訓練
+from sklearn.ensemble import RandomForestClassifier # 載入隨機森林分類器
+rf = RandomForestClassifier(criterion='gini', # 放入'criterion'理想值
+                             n_estimators=1000,# 1000顆樹來測試
+                             min_samples_split=12,# 每一層長幾葉，依你的目標資料集設置
+                             min_samples_leaf=1,# 每一節點的最小樣本數
+                             oob_score=True,# 同意袋外數據測試
+                             random_state=1,# 設計隨機種子數
+                             n_jobs=-1) # 火力全開
+# 將訓練資料所有欄位(除了Survived)與訓練資料的'Survived'欄位放入模型
+rf.fit(dataTrain.iloc[:, 1:], dataTrain.iloc[:, 0])
+# 查看模型評分
+print("%.4f" % rf.oob_score_)
+# 運用feature_importances_(特征權重)來顯示各欄位的重要性
+pd.concat((pd.DataFrame(dataTrain.iloc[:, 1:].columns, columns = ['variable']), 
+           pd.DataFrame(rf.feature_importances_, columns = ['importance'])), 
+          axis = 1).sort_values(by='importance', ascending = False)
+# 預測Test資料集
+rf_res =  rf.predict(dataTest)
+submit['Survived'] = rf_res # 'submit['Survived']欄位資料轉換成預測結果
+submit['Survived'] = submit['Survived'].astype(int)# 'submit['Survived']欄位資料轉換成int
+submit.to_csv('submit.csv', index= 0) # 另存csv
